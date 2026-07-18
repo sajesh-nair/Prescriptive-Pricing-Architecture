@@ -7,9 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Node / Frontend
+/frontend/node_modules
+/frontend/dist
+/frontend/dist-ssr
 *.local
 
 # Editor directories and files
@@ -32,5 +33,5 @@ __pycache__/
 .venv
 venv/
 
-# EXPLICITLY ALLOW MODEL ARTIFACTS
-!*.pkl
+# Note: We are NOT ignoring .pkl files here so your models (xgboost.pkl, etc.) 
+# are correctly uploaded to your repository.
