@@ -1,3 +1,5 @@
+![Dashboard UI](assets/Pricing.png)
+
 Prescriptive Pricing Architecture
 Overview
 This project introduces a Prescriptive Pricing Architecture designed to transition e-commerce strategy from reactive volume-chasing to proactive profit maximization. By leveraging ensemble machine learning models, the system identifies the "elasticity frontier"—the optimal price point where volume spikes and unit margin degradation are balanced to achieve peak structural profitability.
