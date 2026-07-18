@@ -28,7 +28,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.pkl
 .env
 .venv
 venv/
+
+# EXPLICITLY ALLOW MODEL ARTIFACTS
+!*.pkl
