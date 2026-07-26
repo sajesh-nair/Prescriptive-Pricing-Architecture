@@ -8,6 +8,7 @@ import numpy as np
 
 app = FastAPI()
 
+# Enable CORS for frontend requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,7 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Define the expected input structure (Now includes model_type)
+# Resolve the directory where main.py resides to handle Vercel deployment paths properly
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Define the expected input structure
 class MarketInputs(BaseModel):
     state: int
     zone: int
@@ -31,7 +35,7 @@ class MarketInputs(BaseModel):
     inventory_pressure: int
     order_year: int
     order_month: int
-    model_type: str = "xgboost" # Default routing
+    model_type: str = "xgboost"  # Default routing: "xgboost" or "random_forest"
 
 # Global artifacts
 scaler = None
@@ -42,24 +46,43 @@ xgb_model = None
 def load_artifacts():
     global scaler, rf_model, xgb_model
     try:
-        scaler = joblib.load("scaler.pkl")
-        rf_model = joblib.load("random_forest_regressor.pkl")
-        if os.path.exists("xgboost_regressor.pkl"):
-            xgb_model = joblib.load("xgboost_regressor.pkl")
-        print("✅ ML Artifacts loaded into memory.")
+        scaler_path = os.path.join(BASE_DIR, "scaler.pkl")
+        rf_path = os.path.join(BASE_DIR, "random_forest_regressor.pkl")
+        xgb_path = os.path.join(BASE_DIR, "xgboost_regressor.pkl")
+
+        if os.path.exists(scaler_path):
+            scaler = joblib.load(scaler_path)
+        else:
+            print(f"❌ Missing scaler file: {scaler_path}")
+
+        if os.path.exists(rf_path):
+            rf_model = joblib.load(rf_path)
+        else:
+            print(f"❌ Missing Random Forest model file: {rf_path}")
+
+        if os.path.exists(xgb_path):
+            xgb_model = joblib.load(xgb_path)
+        else:
+            print(f"❌ Missing XGBoost model file: {xgb_path}")
+
+        print("✅ ML Artifacts startup loading routine completed.")
     except Exception as e:
         print(f"⚠️ Warning during artifact load: {e}")
 
 @app.get("/features")
 def get_features():
-    df = pd.read_csv("./data/indian_ecommerce_pricing_revenue_growth.csv")
+    csv_path = os.path.join(BASE_DIR, "data", "indian_ecommerce_pricing_revenue_growth.csv")
     
-    # 1. Print the exact columns to your Uvicorn terminal for debugging
+    if not os.path.exists(csv_path):
+        raise HTTPException(
+            status_code=500, 
+            detail=f"CSV file not found on server at path: {csv_path}"
+        )
+
+    df = pd.read_csv(csv_path)
+    
+    # Debug print for server logs
     print("📌 EXACT CSV COLUMNS:", df.columns.tolist())
-    
-    # 2. Try to find the exact column names (handling potential lowercase variations)
-    # If your columns are named something completely different (like 'Location' or 'Product_Line'), 
-    # replace the strings inside the brackets below with your exact column names from the print statement!
     
     state_col = 'State' if 'State' in df.columns else 'state'
     category_col = 'Category' if 'Category' in df.columns else 'category'
@@ -70,20 +93,29 @@ def get_features():
             "categories": sorted(df[category_col].dropna().unique().tolist()),
         }
     except KeyError as e:
-        raise HTTPException(status_code=500, detail=f"Column not found in CSV. Please check the terminal for the exact column names and update main.py. Error: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Column not found in CSV. Error: {e}"
+        )
 
 @app.post("/predict")
 def get_prediction(inputs: MarketInputs):
     global scaler, rf_model, xgb_model
 
-    # Route to the selected algorithm
-    active_model = xgb_model if inputs.model_type == "xgboost" else rf_model
+    if scaler is None:
+        raise HTTPException(status_code=503, detail="Scaler artifact not loaded on server.")
+
+    # Select requested model
+    active_model = xgb_model if inputs.model_type.lower() == "xgboost" else rf_model
     
     if active_model is None:
-        raise HTTPException(status_code=503, detail=f"{inputs.model_type} artifact not found on server.")
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Pipeline failure. Ensure {inputs.model_type} .pkl is generated and tracked in Git."
+        )
 
-    # Convert incoming payload, drop model_type for inference
-    data_dict = inputs.model_dump()
+    # Convert incoming payload (Pydantic V2 & V1 compatibility)
+    data_dict = inputs.model_dump() if hasattr(inputs, "model_dump") else inputs.dict()
     data_dict.pop("model_type", None)
     
     df_input = pd.DataFrame([data_dict])
