@@ -29,7 +29,7 @@ graph TD
     F -->|4. Predict Revenue| B
     B -->|5. Return Predicted Revenue| A
     A -->|6. Calculate Net Profit Curve| G[Recharts Visualization]
-
+```
 System Stack
 ML Engine: Python, Scikit-learn, XGBoost, Joblib.
 
