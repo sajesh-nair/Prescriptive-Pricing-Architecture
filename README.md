@@ -1,5 +1,38 @@
 ![Dashboard UI](assets/Pricing.png)
 
+### System Architecture & Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Client ["Frontend Layer (Vercel)"]
+        UI["React + Tailwind UI"]
+        State["Matrix State Inputs (State, Category, Flags)"]
+        Charts["Recharts Causal Profit Curve"]
+    end
+
+    subgraph Backend ["Backend API Layer (Render)"]
+        API["FastAPI Engine"]
+        Transform["Input Data Preprocessing & Scaling"]
+        Routing{"Model Router"}
+    end
+
+    subgraph ML ["Machine Learning Layer (.pkl)"]
+        RF["Unconstrained Random Forest"]
+        XGB["Monotonic XGBoost Regressor"]
+        Scaler["StandardScaler Artifact"]
+    end
+
+    UI -->|1. User Selects Matrix State| State
+    State -->|2. Concurrent POST /predict requests| API
+    API -->|3. Transform Features| Scaler
+    Scaler -->|4. Route Active Architecture| Routing
+    Routing -->|XGBoost| XGB
+    Routing -->|Random Forest| RF
+    XGB -->|5. Revenue Prediction| API
+    RF -->|5. Revenue Prediction| API
+    API -->|6. Calculate Elasticity & Net Profit| UI
+    UI -->|7. Render Optimal Markdown & Peak Profit| Charts
+
 Prescriptive Pricing Architecture
 Overview
 This project introduces a Prescriptive Pricing Architecture designed to transition e-commerce strategy from reactive volume-chasing to proactive profit maximization. By leveraging ensemble machine learning models, the system identifies the "elasticity frontier"—the optimal price point where volume spikes and unit margin degradation are balanced to achieve peak structural profitability.
