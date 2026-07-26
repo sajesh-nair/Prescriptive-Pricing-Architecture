@@ -8,7 +8,6 @@ import numpy as np
 
 app = FastAPI()
 
-# Enable CORS for frontend requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,10 +16,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Resolve the directory where main.py resides to handle Vercel deployment paths properly
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Define the expected input structure
+# Global cache for serverless functions
+_artifacts = {
+    "scaler": None,
+    "rf_model": None,
+    "xgb_model": None
+}
+
+def load_artifact(filename):
+    """Helper to safely load joblib artifacts in Vercel serverless context."""
+    path = os.path.join(BASE_DIR, filename)
+    if not os.path.exists(path):
+        # Fallback check directly in root directory
+        path = filename
+    
+    if os.path.exists(path):
+        try:
+            return joblib.load(path)
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+            return None
+    else:
+        print(f"File not found: {filename} at path: {path}")
+        return None
+
+def get_scaler():
+    if _artifacts["scaler"] is None:
+        _artifacts["scaler"] = load_artifact("scaler.pkl")
+    return _artifacts["scaler"]
+
+def get_model(model_type: str):
+    m_type = model_type.lower()
+    if "xgb" in m_type or "xgboost" in m_type:
+        if _artifacts["xgb_model"] is None:
+            _artifacts["xgb_model"] = load_artifact("xgboost_regressor.pkl")
+        return _artifacts["xgb_model"], "xgboost_regressor.pkl"
+    else:
+        if _artifacts["rf_model"] is None:
+            _artifacts["rf_model"] = load_artifact("random_forest_regressor.pkl")
+        return _artifacts["rf_model"], "random_forest_regressor.pkl"
+
 class MarketInputs(BaseModel):
     state: int
     zone: int
@@ -35,93 +72,41 @@ class MarketInputs(BaseModel):
     inventory_pressure: int
     order_year: int
     order_month: int
-    model_type: str = "xgboost"  # Default routing: "xgboost" or "random_forest"
-
-# Global artifacts
-scaler = None
-rf_model = None
-xgb_model = None
-
-@app.on_event("startup")
-def load_artifacts():
-    global scaler, rf_model, xgb_model
-    try:
-        scaler_path = os.path.join(BASE_DIR, "scaler.pkl")
-        rf_path = os.path.join(BASE_DIR, "random_forest_regressor.pkl")
-        xgb_path = os.path.join(BASE_DIR, "xgboost_regressor.pkl")
-
-        if os.path.exists(scaler_path):
-            scaler = joblib.load(scaler_path)
-        else:
-            print(f"❌ Missing scaler file: {scaler_path}")
-
-        if os.path.exists(rf_path):
-            rf_model = joblib.load(rf_path)
-        else:
-            print(f"❌ Missing Random Forest model file: {rf_path}")
-
-        if os.path.exists(xgb_path):
-            xgb_model = joblib.load(xgb_path)
-        else:
-            print(f"❌ Missing XGBoost model file: {xgb_path}")
-
-        print("✅ ML Artifacts startup loading routine completed.")
-    except Exception as e:
-        print(f"⚠️ Warning during artifact load: {e}")
+    model_type: str = "xgboost"
 
 @app.get("/features")
 def get_features():
     csv_path = os.path.join(BASE_DIR, "data", "indian_ecommerce_pricing_revenue_growth.csv")
-    
     if not os.path.exists(csv_path):
-        raise HTTPException(
-            status_code=500, 
-            detail=f"CSV file not found on server at path: {csv_path}"
-        )
+        csv_path = "./data/indian_ecommerce_pricing_revenue_growth.csv"
+
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=500, detail=f"CSV file missing at {csv_path}")
 
     df = pd.read_csv(csv_path)
-    
-    # Debug print for server logs
-    print("📌 EXACT CSV COLUMNS:", df.columns.tolist())
-    
     state_col = 'State' if 'State' in df.columns else 'state'
     category_col = 'Category' if 'Category' in df.columns else 'category'
-    
-    try:
-        return {
-            "states": sorted(df[state_col].dropna().unique().tolist()),
-            "categories": sorted(df[category_col].dropna().unique().tolist()),
-        }
-    except KeyError as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Column not found in CSV. Error: {e}"
-        )
+
+    return {
+        "states": sorted(df[state_col].dropna().unique().tolist()),
+        "categories": sorted(df[category_col].dropna().unique().tolist()),
+    }
 
 @app.post("/predict")
 def get_prediction(inputs: MarketInputs):
-    global scaler, rf_model, xgb_model
-
+    scaler = get_scaler()
     if scaler is None:
-        raise HTTPException(status_code=503, detail="Scaler artifact not loaded on server.")
+        raise HTTPException(status_code=503, detail="Pipeline failure. Ensure scaler.pkl is uploaded.")
 
-    # Select requested model
-    active_model = xgb_model if inputs.model_type.lower() == "xgboost" else rf_model
-    
+    active_model, filename = get_model(inputs.model_type)
     if active_model is None:
-        raise HTTPException(
-            status_code=503, 
-            detail=f"Pipeline failure. Ensure {inputs.model_type} .pkl is generated and tracked in Git."
-        )
+        raise HTTPException(status_code=503, detail=f"Pipeline failure. Ensure {filename} is generated.")
 
-    # Convert incoming payload (Pydantic V2 & V1 compatibility)
     data_dict = inputs.model_dump() if hasattr(inputs, "model_dump") else inputs.dict()
     data_dict.pop("model_type", None)
-    
+
     df_input = pd.DataFrame([data_dict])
-    
-    # Scale and predict
     scaled_features = scaler.transform(df_input)
     prediction = active_model.predict(scaled_features)[0]
-    
+
     return {"predicted_revenue": float(prediction)}
