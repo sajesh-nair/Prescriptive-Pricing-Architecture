@@ -1,88 +1,59 @@
+# Prescriptive Pricing Architecture
+
 ![Dashboard UI](assets/Pricing.png)
 
-### System Architecture & Data Flow
+## Overview
+This project introduces a **Prescriptive Pricing Architecture** designed to transition e-commerce strategy from reactive volume-chasing to proactive profit maximization. By leveraging ensemble machine learning models, the system identifies the **elasticity frontier**—the optimal price point where volume spikes and unit margin degradation are balanced to achieve peak structural profitability.
 
-```mermaid
-flowchart TD
-    subgraph Client [Frontend Layer - Vercel]
-        UI[React UI]
-        State[Matrix State Inputs]
-        Charts[Recharts Causal Profit Curve]
-    end
-
-    subgraph Backend [Backend API Layer - Render]
-        API[FastAPI Engine]
-        Transform[Data Preprocessing & Scaling]
-        Routing{Model Router}
-    end
-
-    subgraph ML [Machine Learning Layer]
-        RF[Random Forest Regressor]
-        XGB[Monotonic XGBoost Regressor]
-        Scaler[StandardScaler Artifact]
-    end
-
-    UI --> State
-    State -->|POST /predict| API
-    API --> Transform
-    Transform --> Scaler
-    Scaler --> Routing
-    Routing -->|XGBoost| XGB
-    Routing -->|Random Forest| RF
-    XGB -->|Revenue Output| API
-    RF -->|Revenue Output| API
-    API -->|Net Profit Elasticity| UI
-    UI --> Charts
-
-Prescriptive Pricing Architecture
-Overview
-This project introduces a Prescriptive Pricing Architecture designed to transition e-commerce strategy from reactive volume-chasing to proactive profit maximization. By leveraging ensemble machine learning models, the system identifies the "elasticity frontier"—the optimal price point where volume spikes and unit margin degradation are balanced to achieve peak structural profitability.
-
-The Problem
+## The Problem
 E-commerce brands often rely on static discounting to drive short-term sales. While this clears inventory, it frequently erodes long-term profitability. There is often a disconnect between data-driven insights and actionable, prescriptive pricing strategies.
 
-The Solution
+## The Solution
 This engine provides a prescriptive framework that:
+- **Analyzes Elasticity:** Uses historical transaction data to model how pricing changes affect customer demand.
+- **Benchmarks Architectures:** Provides comparative analysis between Monotonically Constrained XGBoost structures and Random Forest ensembles.
+- **Automates Decisions:** Recommends the exact markdown percentage needed to maximize net profit for given market segments and product lines.
 
-Analyzes Elasticity: Uses historical data to model how pricing changes affect customer behavior.
+---
 
-Benchmarks Architectures: Provides comparative analysis between Monotonic XGBoost structures and Random Forest ensembles.
+## Technical Architecture & Data Flow
 
-Automates Decisions: Recommends the specific markdown percentage needed to maximize net profit for given market segments and product lines.
+```mermaid
+graph TD
+    A[React Frontend - Vercel] -->|1. Matrix Inputs State & Category| B[FastAPI Backend - Render]
+    B -->|2. Preprocess & Scale Payload| C[StandardScaler Pipeline]
+    C -->|3. Route Active Model| D{Model Router}
+    D -->|Monotonic XGBoost| E[xgboost_regressor.pkl]
+    D -->|Random Forest| F[random_forest_regressor.pkl]
+    E -->|4. Predict Revenue| B
+    F -->|4. Predict Revenue| B
+    B -->|5. Return Predicted Revenue| A
+    A -->|6. Calculate Net Profit Curve| G[Recharts Visualization]
 
-Technical Architecture
-The system is built as a full-stack, production-ready application:
+System Stack
+ML Engine: Python, Scikit-learn, XGBoost, Joblib.
 
-ML Engine: Python, Scikit-learn, XGBoost.
+Backend API: FastAPI running on Render (main.py).
 
-Backend: FastAPI (providing low-latency inference for the dashboard).
-
-Frontend: React.js integrated with Tailwind CSS for a responsive, high-performance UI.
-
-Data Visualization: Recharts, integrated with Lucide-React for clean iconography.
+Frontend Dashboard: React.js, Tailwind CSS, Lucide Icons, Recharts running on Vercel (App.jsx).
 
 Key Features
-Segmented Analytics: Filter by Market Target and Product Line to see localized pricing behavior.
+Segmented Analytics: Filter by Market Target and Product Line to see localized pricing behavior across Indian state vectors.
 
-Profit Optimization: Real-time calculation of Gross Revenue vs. Net Profit.
+Profit Optimization: Real-time calculation of Gross Revenue vs. Net Profit across discount intervals.
 
 Monotonic Constraint Handling: XGBoost implementation ensures pricing logic adheres to business-constrained growth/decay patterns.
 
-Local Development
-To run this project locally:
-
-Clone the repository:
-
+Local Development Setup
+1. Clone the repository
 Bash
-git clone https://github.com/sajesh-nair/Prescriptive-Pricing-Architecture.git
+git clone [https://github.com/sajesh-nair/Prescriptive-Pricing-Architecture.git](https://github.com/sajesh-nair/Prescriptive-Pricing-Architecture.git)
 cd Prescriptive-Pricing-Architecture
-Install Backend Dependencies:
-
+2. Launch Backend
 Bash
 pip install -r requirements.txt
 uvicorn main:app --reload
-Launch Frontend:
-
+3. Launch Frontend
 Bash
 cd frontend
 npm install
