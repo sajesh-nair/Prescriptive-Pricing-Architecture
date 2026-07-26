@@ -82,10 +82,10 @@ export default function App() {
           model_type: activeModel // Dynamic Model Routing
         };
 
-        const response = await fetch('http://localhost:8000/predict', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+        const response = await fetch('https://prescriptive-pricing-architecture.onrender.com/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
         });
 
         if (!response.ok) throw new Error(`Schema or Server Error`);
